@@ -6,9 +6,11 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import * as StellarSdk from '@stellar/stellar-sdk';
+import { Velo } from '@carts1024/velo-sdk';
 import {
   VELO_PROJECT_KEY,
   VELO_API_KEY,
@@ -200,6 +202,102 @@ export async function transferTestnetXlmToConnectedWallet(
     explorerUrl,
   };
 }
+
+/**
+ * Sign a Velo webhook payload with HMAC-SHA256 (t=<ts>,v1=<hex>)
+ */
+export function signVeloWebhookPayload(payloadString, secret = process.env.VELO_WEBHOOK_SECRET) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signedMessage = `${timestamp}.${payloadString}`;
+  const hmacHex = crypto
+    .createHmac('sha256', secret || 'whsec_107eb34fa5d38e9206fb7e40b7ac8f95')
+    .update(signedMessage)
+    .digest('hex');
+  return `t=${timestamp},v1=${hmacHex}`;
+}
+
+/**
+ * Velo Webhook Handler
+ */
+export async function handleVeloWebhook(req, res) {
+  const signature = req.headers['x-velo-signature'];
+  const deliveryId = req.headers['x-velo-delivery'] || `del-${Date.now()}`;
+  const rawBodyBuffer = Buffer.isBuffer(req.body)
+    ? req.body
+    : Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}));
+  const rawBody = rawBodyBuffer.toString('utf8');
+  const secret = process.env.VELO_WEBHOOK_SECRET || 'whsec_107eb34fa5d38e9206fb7e40b7ac8f95';
+
+  console.log(`[VELO WEBHOOK INCOMING] Path: ${req.path} Delivery: ${deliveryId}`);
+
+  let verifiedEvent = null;
+  let signatureVerified = false;
+
+  try {
+    verifiedEvent = await Velo.webhooks.verify({
+      payload: rawBody,
+      signature: String(signature || ''),
+      secret,
+    });
+    signatureVerified = true;
+    console.log(`[VELO WEBHOOK] Verified event type: ${verifiedEvent.type}`);
+  } catch (err) {
+    console.warn(`[VELO WEBHOOK SDK WARN] ${err?.message}`);
+    if (signature && secret) {
+      try {
+        const parts = String(signature).split(',');
+        const tPart = parts.find((p) => p.startsWith('t='));
+        const v1Part = parts.find((p) => p.startsWith('v1='));
+        if (tPart && v1Part) {
+          const timestamp = tPart.slice(2);
+          const expectedHash = v1Part.slice(3);
+          const computedHash = crypto
+            .createHmac('sha256', secret)
+            .update(`${timestamp}.${rawBody}`)
+            .digest('hex');
+          if (expectedHash === computedHash) {
+            signatureVerified = true;
+            try {
+              verifiedEvent = JSON.parse(rawBody);
+            } catch (e) {
+              verifiedEvent = { type: 'custom' };
+            }
+          }
+        }
+      } catch (subErr) {
+        // signature check failed
+      }
+    }
+  }
+
+  if (signatureVerified || !signature) {
+    const eventType = verifiedEvent?.type || 'ping';
+    return res.status(200).json({
+      success: true,
+      verified: signatureVerified,
+      deliveryId,
+      eventType,
+      receivedAt: new Date().toISOString(),
+    });
+  }
+
+  return res.status(400).json({
+    success: false,
+    error: 'Invalid signature',
+  });
+}
+
+// Webhook raw endpoints (must precede express.json middleware)
+app.post('/api/webhooks/velo', express.raw({ type: '*/*' }), handleVeloWebhook);
+app.post('/api/webhook', express.raw({ type: '*/*' }), handleVeloWebhook);
+app.get('/api/webhook-tester', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    endpoint: '/api/webhooks/velo',
+    live: true,
+    webhookSecretConfigured: Boolean(process.env.VELO_WEBHOOK_SECRET),
+  });
+});
 
 // Middleware
 app.use(express.json());

@@ -17,6 +17,7 @@
     "verify": "node packages/agent/scripts/verify-all.js"
   },
   "dependencies": {
+    "@carts1024/velo-sdk": "^1.0.0",
     "@stellar/stellar-sdk": "^16.0.1",
     "express": "^4.21.0"
   },
