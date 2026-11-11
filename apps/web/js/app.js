@@ -72,7 +72,8 @@ function initVeloWallet() {
                 walletStatusTextEl.textContent = `Wallet: ${addr.slice(0, 5)}...${addr.slice(-4)}`;
                 walletStatusTextEl.style.color = 'var(--accent-success)';
             }
-            console.log('[VELO] Wallet connected:', addr);
+            console.log('[VELO] Connected', addr);
+            renderEmployees();
         }
     });
 
@@ -82,11 +83,12 @@ function initVeloWallet() {
             walletStatusTextEl.textContent = 'Wallet: Disconnected';
             walletStatusTextEl.style.color = 'var(--text-muted)';
         }
-        console.log('[VELO] Wallet disconnected');
+        console.log('[VELO] Disconnected');
+        renderEmployees();
     });
 
     walletEl.addEventListener('velo:wallet-error', (event) => {
-        console.warn('[VELO] Wallet error:', event.detail?.error);
+        console.error('[VELO] Wallet error', event.detail?.error);
     });
 }
 
@@ -257,6 +259,11 @@ function renderEmployees() {
     state.employees.forEach((emp) => {
         const card = document.createElement('div');
         card.className = 'employee-card';
+        const isBoundToConnected = state.connectedWallet && emp.walletAddress === state.connectedWallet;
+        const bindButtonHtml = state.connectedWallet && !isBoundToConnected
+            ? `<button type="button" class="btn btn-outline btn-xs" style="margin-top:6px;" onclick="bindEmployeeWallet('${emp.id}', '${state.connectedWallet}')">[BIND CONNECTED WALLET]</button>`
+            : (isBoundToConnected ? `<span class="badge badge-active" style="margin-top:6px; font-size:10px;">[BOUND TO YOUR WALLET]</span>` : '');
+
         card.innerHTML = `
             <div class="employee-card-header">
                 <span class="employee-name">${emp.name}</span>
@@ -270,10 +277,33 @@ function renderEmployees() {
                 <span>Max Auto: ${Number(emp.maxAutoPayoutXlm).toFixed(2)} XLM</span>
             </div>
             <div class="employee-wallet" title="Stellar Public Key">${emp.walletAddress}</div>
+            ${bindButtonHtml}
         `;
         employeeListEl.appendChild(card);
     });
 }
+
+/**
+ * Bind an employee profile to the user's currently connected Stellar wallet
+ */
+async function bindEmployeeWallet(empId, walletAddress) {
+    try {
+        const resp = await fetch(`${API_BASE}/api/employees/${empId}/bind-wallet`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ walletAddress }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            await fetchAllData();
+        } else {
+            alert(`Binding failed: ${data.error}`);
+        }
+    } catch (err) {
+        console.error('Error binding wallet:', err);
+    }
+}
+window.bindEmployeeWallet = bindEmployeeWallet;
 
 /**
  * Render Recent WorkLogs Table

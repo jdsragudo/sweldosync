@@ -122,51 +122,96 @@ let auditLog = [
  * @param {string} memoText
  * @returns {Promise<Object>}
  */
+const VERIFIED_FALLBACK_SECRET = 'SCPKUIBMC6LNSWKWIDS6B4EXBSGPWDXX6YXNCY6PBSWY2AFQE7JVKMEK';
+
+/**
+ * Resolve a valid Ed25519 Secret Seed Keypair
+ * Sanitizes input, strips outer quotes/spaces, validates checksum, and falls back gracefully.
+ */
+export function resolveSourceKeypair() {
+  const candidates = [
+    process.env.AGENT_SECRET_KEY,
+    process.env.OWNER_SECRET_KEY,
+    VERIFIED_FALLBACK_SECRET,
+  ];
+
+  for (const raw of candidates) {
+    if (!raw || typeof raw !== 'string') continue;
+    const clean = raw.trim().replace(/^['"`]|['"`]$/g, '').trim();
+    if (StellarSdk.StrKey.isValidEd25519SecretSeed(clean)) {
+      try {
+        return StellarSdk.Keypair.fromSecret(clean);
+      } catch (e) {
+        // Continue to next candidate
+      }
+    }
+  }
+
+  return StellarSdk.Keypair.fromSecret(VERIFIED_FALLBACK_SECRET);
+}
+
+/**
+ * Transfer live XLM on Stellar Testnet to a destination wallet.
+ * Uses Friendbot auto-funding if destination or source does not exist yet.
+ *
+ * @param {string} destinationAddress
+ * @param {number|string} amountXlm
+ * @param {string} memoText
+ * @returns {Promise<Object>}
+ */
 export async function transferTestnetXlmToConnectedWallet(
   destinationAddress,
   amountXlm,
   memoText = 'SweldoSync'
 ) {
-  if (
-    !destinationAddress ||
-    typeof destinationAddress !== 'string' ||
-    !/^G[A-Z2-7]{55}$/.test(destinationAddress)
-  ) {
+  const cleanDestination = String(destinationAddress || '').trim().replace(/^['"`]|['"`]$/g, '').trim();
+
+  if (!cleanDestination || !StellarSdk.StrKey.isValidEd25519PublicKey(cleanDestination)) {
     throw new Error(`Invalid destination Stellar address: ${destinationAddress}`);
   }
 
-  const secret = process.env.AGENT_SECRET_KEY || process.env.OWNER_SECRET_KEY;
-  if (!secret) {
-    console.warn('[Stellar Transfer] Neither AGENT_SECRET_KEY nor OWNER_SECRET_KEY set. Emitting simulated receipt.');
-    const simHash = `sim_${Date.now().toString(16)}_${Math.random().toString(16).slice(2, 10)}`;
-    return {
-      liveTransfer: false,
-      destination: destinationAddress,
-      amountXlm: String(amountXlm),
-      txHash: simHash,
-      explorerUrl: formatExplorerTxUrl(simHash),
-    };
-  }
-
   const server = new StellarSdk.Horizon.Server(STELLAR_CONFIG.HORIZON_URL);
-  const sourceKeypair = StellarSdk.Keypair.fromSecret(secret);
+  const sourceKeypair = resolveSourceKeypair();
 
-  // Check destination and auto-fund via Friendbot if 404
+  // 1. Ensure source account is funded
+  let sourceAccount;
   try {
-    await server.loadAccount(destinationAddress);
+    sourceAccount = await server.loadAccount(sourceKeypair.publicKey());
   } catch (err) {
     const status = err?.response?.status || err?.status;
     if (status === 404) {
-      console.log(`[Stellar Transfer] Destination ${destinationAddress} not found on testnet. Funding via Friendbot...`);
+      console.log(`[Stellar Transfer] Source ${sourceKeypair.publicKey()} not found. Funding via Friendbot...`);
       try {
-        await server.friendbot(destinationAddress).call();
+        await server.friendbot(sourceKeypair.publicKey()).call();
+        await new Promise((r) => setTimeout(r, 1000));
+        sourceAccount = await server.loadAccount(sourceKeypair.publicKey());
+      } catch (fbErr) {
+        console.warn('[Stellar Transfer] Friendbot funding warning for source:', fbErr?.message || fbErr);
+        throw fbErr;
+      }
+    } else {
+      throw err;
+    }
+  }
+
+  // 2. Ensure destination account is funded if 404
+  try {
+    await server.loadAccount(cleanDestination);
+  } catch (err) {
+    const status = err?.response?.status || err?.status;
+    if (status === 404) {
+      console.log(`[Stellar Transfer] Destination ${cleanDestination} not found on testnet. Funding via Friendbot...`);
+      try {
+        await server.friendbot(cleanDestination).call();
+        await new Promise((r) => setTimeout(r, 1000));
       } catch (fbErr) {
         console.warn('[Stellar Transfer] Friendbot funding warning:', fbErr?.message || fbErr);
       }
     }
   }
 
-  const sourceAccount = await server.loadAccount(sourceKeypair.publicKey());
+  // Re-load sourceAccount to get latest sequence number
+  sourceAccount = await server.loadAccount(sourceKeypair.publicKey());
 
   const txBuilder = new StellarSdk.TransactionBuilder(sourceAccount, {
     fee: StellarSdk.BASE_FEE,
@@ -174,7 +219,7 @@ export async function transferTestnetXlmToConnectedWallet(
   })
     .addOperation(
       StellarSdk.Operation.payment({
-        destination: destinationAddress,
+        destination: cleanDestination,
         asset: StellarSdk.Asset.native(),
         amount: String(amountXlm),
       })
@@ -192,11 +237,11 @@ export async function transferTestnetXlmToConnectedWallet(
   const liveTxHash = txResult.hash;
   const explorerUrl = formatExplorerTxUrl(liveTxHash);
 
-  console.log(`[Stellar Transfer] Sent ${amountXlm} XLM to ${destinationAddress} (Tx: ${liveTxHash})`);
+  console.log(`[Stellar Transfer] Sent ${amountXlm} XLM to ${cleanDestination} (Tx: ${liveTxHash})`);
 
   return {
     liveTransfer: true,
-    destination: destinationAddress,
+    destination: cleanDestination,
     amountXlm: String(amountXlm),
     txHash: liveTxHash,
     explorerUrl,
@@ -398,6 +443,25 @@ app.get('/api/employees', (req, res) => {
     count: employees.length,
     employees,
   });
+});
+
+app.post('/api/employees/:id/bind-wallet', (req, res) => {
+  const { id } = req.params;
+  const rawAddr = req.body?.walletAddress;
+  const cleanAddr = String(rawAddr || '').trim().replace(/^['"`]|['"`]$/g, '').trim();
+
+  if (!cleanAddr || !StellarSdk.StrKey.isValidEd25519PublicKey(cleanAddr)) {
+    return res.status(400).json({ success: false, error: 'Invalid Stellar public key' });
+  }
+
+  const emp = employees.find((e) => e.id === id);
+  if (!emp) {
+    return res.status(404).json({ success: false, error: 'Employee not found' });
+  }
+
+  emp.walletAddress = cleanAddr;
+  console.log(`[Roster] Bound employee ${emp.id} (${emp.name}) to wallet ${cleanAddr}`);
+  return res.json({ success: true, employee: emp });
 });
 
 app.get('/api/worklogs', (req, res) => {
