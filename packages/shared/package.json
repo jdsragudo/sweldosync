@@ -1,0 +1,11 @@
+{
+  "name": "@sweldosync/shared",
+  "version": "1.0.0",
+  "description": "Shared constants, default employee roster, and configuration for SweldoSync",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node -e 'console.log(\"[OK] Shared module loaded\")'"
+  },
+  "license": "MIT"
+}

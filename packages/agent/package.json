@@ -1,0 +1,15 @@
+{
+  "name": "@sweldosync/agent",
+  "version": "1.0.0",
+  "description": "3-Layer Autonomous Payroll Agent for SweldoSync (Perception -> Policy -> Action)",
+  "type": "module",
+  "main": "src/payroll-agent.js",
+  "scripts": {
+    "test": "node scripts/verify-all.js"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^16.0.1",
+    "@sweldosync/shared": "^1.0.0"
+  },
+  "license": "MIT"
+}

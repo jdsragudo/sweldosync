@@ -1,0 +1,17 @@
+{
+  "name": "@sweldosync/server",
+  "version": "1.0.0",
+  "description": "Express REST API, Velo Wallet CORS Proxy, and Stellar Testnet Horizon Payout Helper for SweldoSync",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^16.0.1",
+    "@sweldosync/agent": "^1.0.0",
+    "@sweldosync/shared": "^1.0.0",
+    "express": "^4.21.0"
+  },
+  "license": "MIT"
+}

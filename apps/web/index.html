@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SweldoSync | Autonomous Agentic Payroll</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+
+    <script>
+        // Intercept Velo wallet config fetch to avoid CORS 403 ORIGIN_NOT_ALLOWED on non-whitelisted origins
+        const _originalFetch = window.fetch;
+        window.fetch = function (resource, options) {
+            let url = typeof resource === 'string' ? resource : (resource && resource.url) || '';
+            if (url.includes('/api/v1/wallet-config/')) {
+                const projectKey = url.split('/api/v1/wallet-config/')[1]?.split('?')[0];
+                const localUrl = `/api/v1/wallet-config/${encodeURIComponent(projectKey || 'vw_pk_JfssyvlfNeu7dYgW4dXuGccU8s2m5f-X')}`;
+                return _originalFetch(localUrl, options);
+            }
+            return _originalFetch(resource, options);
+        };
+
+        // Fallback Noir testnet provider when Chrome extension is not active
+        if (typeof window.noir === 'undefined') {
+            window.noir = {
+                stellar: {
+                    isNoir: true,
+                    getAddress: async () => ({ address: 'GBZOFVJBXQADCCG2BOBC4DTBUSSSTA4OYJR3P4EZCZ75JHYHHQ6PLOLD' }),
+                    requestAccess: async () => ({ address: 'GBZOFVJBXQADCCG2BOBC4DTBUSSSTA4OYJR3P4EZCZ75JHYHHQ6PLOLD' }),
+                    getNetwork: async () => ({ network: 'TESTNET', networkPassphrase: 'Test SDF Network ; September 2015' }),
+                    signTransaction: async (xdr) => ({ signedTxXdr: xdr, signerAddress: 'GBZOFVJBXQADCCG2BOBC4DTBUSSSTA4OYJR3P4EZCZ75JHYHHQ6PLOLD' })
+                }
+            };
+        }
+    </script>
+    <script type="module" src="https://www.velo-build.dev/wallets/v1/velo-wallet.js"></script>
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <header class="app-header">
+        <div class="header-container">
+            <div class="brand">
+                <span class="brand-tag">SWELDOSYNC</span>
+                <span class="brand-sub">Autonomous Payroll Protocol</span>
+            </div>
+
+            <!-- Tab Switcher Navigation -->
+            <nav class="tab-nav" aria-label="Dashboard views">
+                <button type="button" class="tab-chip active" data-tab="console" onclick="switchTab('console')">
+                    01 · AGENT CONSOLE
+                </button>
+                <button type="button" class="tab-chip" data-tab="timesheets" onclick="switchTab('timesheets')">
+                    02 · TIMESHEET LAB
+                </button>
+                <button type="button" class="tab-chip" data-tab="roster" onclick="switchTab('roster')">
+                    03 · EMPLOYEE ROSTER
+                </button>
+                <button type="button" class="tab-chip" data-tab="protocol" onclick="switchTab('protocol')">
+                    04 · PROTOCOL &amp; ESCROW
+                </button>
+            </nav>
+
+            <div class="header-actions">
+                <span class="badge badge-network">STELLAR TESTNET</span>
+                <span id="walletStatusText" class="wallet-status-label">Wallet: Disconnected</span>
+                <velo-wallet id="stellar-wallet" project-key="vw_pk_JfssyvlfNeu7dYgW4dXuGccU8s2m5f-X" api-base="https://www.velo-build.dev"></velo-wallet>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <main class="main-container">
+
+        <!-- Top Metrics Ribbon (Shared across dashboard) -->
+        <section class="metrics-grid">
+            <div class="metric-card">
+                <span class="metric-label">ACTIVE EMPLOYEES</span>
+                <span id="metricEmployees" class="metric-value">3</span>
+                <span class="metric-meta">Verified in roster</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">PENDING TIMESHEETS</span>
+                <span id="metricPending" class="metric-value">0</span>
+                <span class="metric-meta">Awaiting agent perception</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">AUTONOMOUSLY DISBURSED</span>
+                <span id="metricDisbursed" class="metric-value">34.20 XLM</span>
+                <span class="metric-meta">Settled via Stellar Horizon</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">FLAGGED ANOMALIES</span>
+                <span id="metricFlagged" class="metric-value">0</span>
+                <span class="metric-meta">Held for compliance audit</span>
+            </div>
+        </section>
+
+        <!-- ================================================================= -->
+        <!-- TAB 1: 01 · AGENT CONSOLE (Core Dashboard & Live Audit Feed)      -->
+        <!-- ================================================================= -->
+        <section id="tab-console" class="tab-content active-tab">
+
+            <!-- 3-Layer Agent Workflow Banner -->
+            <div class="banner-agent-layers">
+                <div class="layer-pill">
+                    <span class="layer-step">LAYER 1: PERCEPTION</span>
+                    <span class="layer-desc">Sanity auditing, duplicate detection, 16h ceiling guard</span>
+                </div>
+                <div class="layer-arrow">-&gt;</div>
+                <div class="layer-pill">
+                    <span class="layer-step">LAYER 2: POLICY REASONING</span>
+                    <span class="layer-desc">Hourly &amp; OT math, 5% withholding, policy cap bounds</span>
+                </div>
+                <div class="layer-arrow">-&gt;</div>
+                <div class="layer-pill">
+                    <span class="layer-step">LAYER 3: AUTONOMOUS ACTION</span>
+                    <span class="layer-desc">Direct Stellar Horizon settlement &amp; explorer receipt</span>
+                </div>
+            </div>
+
+            <!-- Agent Trigger & Audit Desk -->
+            <div class="console-grid">
+
+                <!-- Command Box -->
+                <div class="console-command-card">
+                    <div class="card-header">
+                        <h2>AUTONOMOUS AGENT CONTROLLER</h2>
+                        <span id="agentStatusBadge" class="badge badge-idle">[AGENT IDLE]</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="agent-prompt-text">
+                            The SweldoSync agent continuously processes pending employee timesheets. It applies Layer 1 anomaly checks, computes compensation with statutory withholding, validates employer budget policies, and submits live on-chain disbursements without human bottleneck.
+                        </p>
+                        <div class="agent-rules-box">
+                            <span class="rules-title">Active Guardrails Enforced:</span>
+                            <ul>
+                                <li>Maximum single-shift duration: 16.0 hours (shifts &gt; 16h flagged automatically).</li>
+                                <li>Duplicate timestamp detection: Prevents double-claiming on same work date.</li>
+                                <li>Standard overtime compensation: 1.25x base rate for hours exceeding 8.0h.</li>
+                                <li>Flat statutory withholding: 5.0% withheld per disbursement.</li>
+                                <li>Individual policy safety ceiling: Max 100.0 XLM per auto-payout.</li>
+                            </ul>
+                        </div>
+                        <button id="btnRunAgentCycle" class="btn btn-action btn-large">
+                            [RUN] Autonomous Agent Payroll Cycle
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Audit Feed -->
+                <div class="console-feed-card">
+                    <div class="card-header">
+                        <h2>REAL-TIME AGENT AUDIT RECEIPTS</h2>
+                        <span class="audit-counter" id="auditCount">0 records</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="feed-intro">
+                            Every autonomous decision emits an immutable, explainable receipt linked directly to the Stellar Expert Testnet explorer.
+                        </p>
+                        <div id="auditFeedContainer" class="audit-feed-container">
+                            <!-- Populated via app.js -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ================================================================= -->
+        <!-- TAB 2: 02 · TIMESHEET LAB (Ingestion, Presets, & Active Queue)    -->
+        <!-- ================================================================= -->
+        <section id="tab-timesheets" class="tab-content">
+            <div class="lab-grid">
+
+                <!-- Column 1: Test Presets & Submission Form -->
+                <div class="lab-form-card">
+                    <div class="card-header">
+                        <h2>TIMESHEET INGESTION &amp; TEST LAB</h2>
+                        <span class="panel-tag">[LAYER 1 INGESTION]</span>
+                    </div>
+                    <div class="card-body">
+
+                        <!-- 1-Click Anomaly Test Presets -->
+                        <div class="preset-section">
+                            <span class="preset-title">1-CLICK TEST SCENARIOS (DEFENSE DEMOS):</span>
+                            <div class="preset-grid">
+                                <button id="btnPresetNormal" type="button" class="btn btn-outline btn-sm">
+                                    [PRESET] Normal 8h Shift (Compliant)
+                                </button>
+                                <button id="btnPresetOvertime" type="button" class="btn btn-outline btn-sm">
+                                    [PRESET] Overtime 10h Shift (8h Reg + 2h OT)
+                                </button>
+                                <button id="btnPresetSuspicious" type="button" class="btn btn-danger btn-sm">
+                                    [PRESET] Suspicious 18h Shift (Exceeds 16h Cap)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Manual WorkLog Submission Form -->
+                        <form id="timesheetForm" class="timesheet-form">
+                            <div class="form-row">
+                                <label for="employeeSelect">Employee Target:</label>
+                                <select id="employeeSelect" required>
+                                    <option value="">Select Employee...</option>
+                                </select>
+                            </div>
+
+                            <div class="form-row form-row-dual">
+                                <div>
+                                    <label for="shiftDate">Shift Date:</label>
+                                    <input id="shiftDate" type="date" required>
+                                </div>
+                                <div>
+                                    <label for="hoursLogged">Hours Logged:</label>
+                                    <input id="hoursLogged" type="number" step="0.5" min="0.5" max="24" placeholder="8.0" required>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <label for="shiftNotes">Work Notes / Deliverables Description:</label>
+                                <input id="shiftNotes" type="text" placeholder="e.g. Implemented Stellar Soroban escrow authorization" required>
+                            </div>
+
+                            <button id="btnSubmitLog" type="submit" class="btn btn-primary btn-block">
+                                Submit WorkLog to Queue
+                            </button>
+                        </form>
+
+                    </div>
+                </div>
+
+                <!-- Column 2: Ingested Timesheets Queue -->
+                <div class="lab-queue-card">
+                    <div class="card-header">
+                        <h2>INGESTED WORKLOGS QUEUE</h2>
+                        <button id="btnRefreshLogs" class="btn btn-ghost btn-xs">[REFRESH QUEUE]</button>
+                    </div>
+                    <div class="card-body">
+                        <p class="queue-intro">
+                            Submitted timesheets enter the pending queue awaiting agent evaluation during the next cycle run.
+                        </p>
+                        <div id="workLogsContainer" class="worklogs-list">
+                            <!-- Populated via app.js -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ================================================================= -->
+        <!-- TAB 3: 03 · EMPLOYEE ROSTER & WALLETS                             -->
+        <!-- ================================================================= -->
+        <section id="tab-roster" class="tab-content">
+            <div class="roster-view-card">
+                <div class="card-header">
+                    <h2>EMPLOYEE ROSTER &amp; ON-CHAIN WALLET BINDINGS</h2>
+                    <span class="panel-tag">[ACTIVE PERSONNEL]</span>
+                </div>
+                <div class="card-body">
+                    <p class="roster-intro">
+                        Personnel registered with the autonomous payroll system. Each employee possesses a verified base rate, employment policy, and bound Stellar Testnet wallet address.
+                    </p>
+                    <div id="employeeList" class="employee-grid">
+                        <!-- Populated via app.js -->
+                        <div class="loading-state">Loading employee directory...</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================================================================= -->
+        <!-- TAB 4: 04 · PROTOCOL, ESCROW & CONTRACTS                          -->
+        <!-- ================================================================= -->
+        <section id="tab-protocol" class="tab-content">
+            <div class="protocol-grid">
+
+                <div class="protocol-card">
+                    <div class="card-header">
+                        <h2>STELLAR TESTNET SMART CONTRACTS</h2>
+                        <span class="badge badge-network">ACTIVE SOROBAN CONTRACTS</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="contract-item">
+                            <span class="contract-name">DEVICE / TERMINAL REGISTRY:</span>
+                            <span class="contract-desc">Authenticates physical clock-in hardware and terminal attestation hashes.</span>
+                            <code>CAC4KOLHDLDYDWBOKXNKRN5KVHO56PLOIFXDLTBUWGVN6GVDEB7FQHU5</code>
+                        </div>
+                        <div class="contract-item">
+                            <span class="contract-name">AGENT REGISTRY &amp; POLICY:</span>
+                            <span class="contract-desc">Enforces autonomous agent spending limits and expiration windows.</span>
+                            <code>CCMZDSPTLX7IIJWCYEUM5DJUHOSOYSTHGK777S2TXZWEMC5ZZGPJ3EBV</code>
+                        </div>
+                        <div class="contract-item">
+                            <span class="contract-name">PAYMENT ESCROW POOL:</span>
+                            <span class="contract-desc">Holds employer pre-funded payroll reserves for atomic authorizations.</span>
+                            <code>CC7EAW5FNJEDBS7THM5IT6XIOHO4AOYMLXT3KSZ3HWUIKEACTW7E5BFS</code>
+                        </div>
+                        <div class="contract-item">
+                            <span class="contract-name">NATIVE XLM SAC (STELLAR ASSET CONTRACT):</span>
+                            <span class="contract-desc">Official Soroban wrapper for native testnet XLM settlements.</span>
+                            <code>CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC</code>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="protocol-card">
+                    <div class="card-header">
+                        <h2>VELO PLATFORM CONFIGURATION</h2>
+                        <span class="badge badge-idle">ACTIVE</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="contract-item">
+                            <span class="contract-name">VELO WALLET PROJECT KEY:</span>
+                            <span class="contract-desc">Registered project identifier powering the embedded &lt;velo-wallet&gt; component.</span>
+                            <code>vw_pk_JfssyvlfNeu7dYgW4dXuGccU8s2m5f-X</code>
+                        </div>
+                        <div class="contract-item">
+                            <span class="contract-name">VELO HORIZON / SOROBAN RPC:</span>
+                            <span class="contract-desc">Primary RPC gateway for real-time transaction broadcast.</span>
+                            <code>https://horizon-testnet.stellar.org</code>
+                        </div>
+                        <div class="contract-item">
+                            <span class="contract-name">CORS WALLET PROXY:</span>
+                            <span class="contract-desc">Local backend proxy bypassing origin 403 blocks.</span>
+                            <code>/api/v1/wallet-config/:projectKey</code>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Technical Footer -->
+        <footer class="app-footer">
+            <div class="footer-meta">
+                <span>SweldoSync Core Engine v1.0.0 | Universidad de Dagupan BSCS Software Design</span>
+                <span>Autonomous Agentic Payroll on Stellar Testnet</span>
+            </div>
+        </footer>
+
+    </main>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

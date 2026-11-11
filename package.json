@@ -1,0 +1,25 @@
+{
+  "name": "sweldosync",
+  "version": "1.0.0",
+  "description": "SweldoSync - Autonomous 3-Layer Agentic Payroll System on Stellar Testnet and Velo",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "start": "node apps/server/src/index.js",
+    "test": "node packages/agent/scripts/verify-all.js",
+    "verify": "node packages/agent/scripts/verify-all.js"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^16.0.1",
+    "express": "^4.21.0"
+  },
+  "author": "John Dominic Ragudo",
+  "license": "MIT"
+}
