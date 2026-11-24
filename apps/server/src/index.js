@@ -1402,8 +1402,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
     process.exit(1);
   }
   const app = await createApp();
-  const server = app.listen(port, () => {
-    console.log(`[START] SweldoSync 2.0 Server listening on http://localhost:${port}`);
+  const server = app.listen(port, '0.0.0.0', () => {
+    console.log(`[START] SweldoSync 2.0 Server listening on http://0.0.0.0:${port}`);
   });
   const shutdown = async () => {
     server.close(async () => {
