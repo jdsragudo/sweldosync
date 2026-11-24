@@ -11,6 +11,12 @@ yarn-error.log*
 .env.*.local
 *.local
 
+# Runtime SQLite & Ephemeral Demo Keys
+data/
+*.sqlite
+*.sqlite-tmp
+*.sqlite-journal
+
 # System & IDE
 .DS_Store
 Thumbs.db
@@ -19,8 +25,7 @@ Thumbs.db
 *.swp
 *.swo
 
-# Build & Cache
-dist/
+# Build & Cache (apps/web/dist tracked in deploy repo as Render fallback)
 build/
 .cache/
 /tmp/

@@ -1,7 +1,7 @@
 {
   "name": "@sweldosync/server",
-  "version": "1.0.0",
-  "description": "Express REST API, Velo Wallet CORS Proxy, and Stellar Testnet Horizon Payout Helper for SweldoSync",
+  "version": "2.0.0",
+  "description": "SweldoSync 2.0 Express API, SQLite Persistence, and Stellar Horizon Service",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -11,7 +11,9 @@
     "@stellar/stellar-sdk": "^16.0.1",
     "@sweldosync/agent": "^1.0.0",
     "@sweldosync/shared": "^1.0.0",
-    "express": "^4.21.0"
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "sql.js": "^1.13.0"
   },
   "license": "MIT"
 }

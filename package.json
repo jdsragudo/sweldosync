@@ -1,7 +1,7 @@
 {
   "name": "sweldosync",
-  "version": "1.0.0",
-  "description": "SweldoSync - Autonomous 3-Layer Agentic Payroll System on Stellar Testnet and Velo",
+  "version": "2.0.0",
+  "description": "SweldoSync 2.0 - Crypto-Native Global Payroll on Stellar (Testnet & Mainnet)",
   "private": true,
   "type": "module",
   "engines": {
@@ -12,14 +12,28 @@
     "packages/*"
   ],
   "scripts": {
+    "dev:server": "node apps/server/src/index.js",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspace=apps/web",
+    "postinstall": "node scripts/render-postinstall.js",
     "start": "node apps/server/src/index.js",
-    "test": "node packages/agent/scripts/verify-all.js",
-    "verify": "node packages/agent/scripts/verify-all.js"
+    "test": "node --test packages/agent/test/*.test.js apps/server/test/*.test.js",
+    "verify": "npm test"
   },
   "dependencies": {
-    "@carts1024/velo-sdk": "^1.0.0",
+    "@stellar/freighter-api": "^4.1.0",
     "@stellar/stellar-sdk": "^16.0.1",
-    "express": "^4.21.0"
+    "express": "^4.21.2",
+    "framer-motion": "^12.4.7",
+    "helmet": "^8.0.0",
+    "lucide-react": "^0.475.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sql.js": "^1.13.0",
+    "@tailwindcss/vite": "^4.0.9",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.0.9",
+    "vite": "^6.2.0"
   },
   "author": "John Dominic Ragudo",
   "license": "MIT"
